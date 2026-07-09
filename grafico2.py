@@ -254,13 +254,12 @@ def render(df):
             )
             fig_ops.add_trace(
                 go.Scatter(
-                    x=list(range(1, len(df_ops) + 1)),
+                    x=list(df_ops["FECHA_OPER_"]),
                     y=list(df_ops["SALDO_CONTABLE"]),
                     mode="lines+markers",
                     line=dict(color="#00D2FF", width=2.5),
                     marker=dict(size=4),
                     hovertemplate=(
-                        "<b>Operación %{x}</b><br>"
                         "Fecha: %{customdata[0]}<br>"
                         "Tipo: %{customdata[3]}<br>"
                         "Genérico: %{customdata[2]}<br>"
@@ -276,7 +275,7 @@ def render(df):
             fig_ops.update_layout(
                 template="plotly_dark",
                 title=f"Saldo Contable por Operación — {moneda}",
-                xaxis_title="Número de Operación (Orden Cronológico)",
+                xaxis_title="Fecha de Operación",
                 yaxis_title=f"Saldo Contable ({sym})",
                 yaxis_type=yaxis_type_ops,
                 hovermode="x unified",
