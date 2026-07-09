@@ -66,7 +66,6 @@ htmlcov/
 .pyre/
 
 # Local databases
-*.db
 *.sqlite3
 
 # Temporary files
