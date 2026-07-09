@@ -22,13 +22,6 @@ def render(df):
             st.info("Sin datos con los filtros seleccionados.")
             continue
 
-        # ── Toggle escala logarítmica ─────────────────────────────────
-        use_log = st.toggle(
-            "📐 Escala logarítmica",
-            value=True,
-            key=f"g1_log_{moneda}",
-        )
-
         ingresos = dfm[dfm["TIPO"] == "Ingreso"].copy()
         egresos = dfm[dfm["TIPO"] == "Egreso"].copy()
 
@@ -66,7 +59,7 @@ def render(df):
                 hovertemplate="Fecha: %{x}<br>Saldo: %{y:,.2f}<extra>Egreso</extra>",
             )
         )
-        yaxis_type = "log" if use_log else "linear"
+        yaxis_type = st.session_state.get("yaxis_type", "linear")
         fig.update_layout(
             template="plotly_dark",
             title=f"Saldo Contable — {moneda}",

@@ -64,6 +64,17 @@ with st.sidebar:
         index=0,
     )
     st.divider()
+
+    # ── Toggle global de escala ───────────────────────────────────
+    use_log = st.toggle(
+        "📐 Escala logarítmica",
+        value=False,
+        key="global_log_scale",
+        help="Aplica escala logarítmica a todos los gráficos de barras y líneas.",
+    )
+    st.session_state["yaxis_type"] = "log" if use_log else "linear"
+
+    st.divider()
     st.caption("App desarrollada para análisis de movimientos bancarios")
 
 # ── Páginas ───────────────────────────────────────────────────────────
@@ -107,7 +118,10 @@ if reporte == "🏠 Resumen General":
     fig_top = px.bar(top_gen, x="Genérico", y="Cantidad", color="Monto Total",
                      template="plotly_dark", title="Cantidad de movimientos por Genérico",
                      color_continuous_scale="Viridis")
-    fig_top.update_layout(xaxis_tickangle=-45, height=450)
+    fig_top.update_layout(
+        xaxis_tickangle=-45, height=450,
+        yaxis_type=st.session_state.get("yaxis_type", "linear"),
+    )
     st.plotly_chart(fig_top, use_container_width=True)
 
 elif reporte == "📈 Ingresos vs Egresos":
