@@ -105,3 +105,76 @@ COLORS = {
     "accent1": "#00D2FF",
     "accent2": "#FF4ECD",
 }
+
+
+def filtrar_df_estilo_excel(df, key_prefix, use_expander=True):
+    """
+    Renderiza selectores múltiples en un expander o contenedor para emular filtros de columna estilo Excel.
+    Permite filtrar por cualquier columna del DataFrame de forma dinámica.
+    """
+    if df.empty:
+        return df
+
+    def render_content():
+        columnas = list(df.columns)
+        # Excluir columnas de tipo datetime o id si son muy largas
+        default_cols = [
+            c
+            for c in ["Moneda", "TIPO", "GENÉRICO", "Ejecutivo_Cuenta", "OFICINA_CANAL"]
+            if c in columnas
+        ]
+        if not default_cols:
+            default_cols = columnas[:3]
+
+        cols_a_filtrar = st.multiselect(
+            "Seleccionar columnas para aplicar filtros:",
+            options=columnas,
+            default=default_cols,
+            key=f"{key_prefix}_excel_cols_sel",
+        )
+
+        df_filtrado = df.copy()
+
+        if cols_a_filtrar:
+            # Layout en columnas (máximo 4 por fila)
+            n_cols = len(cols_a_filtrar)
+            grid = st.columns(min(n_cols, 4))
+            for i, col in enumerate(cols_a_filtrar):
+                col_idx = i % 4
+                with grid[col_idx]:
+                    valores_unicos = df_filtrado[col].dropna().unique()
+                    try:
+                        valores_unicos = sorted(valores_unicos, key=lambda x: str(x))
+                    except Exception:
+                        pass
+
+                    tiene_nulos = df_filtrado[col].isna().any()
+                    opciones = [str(v) for v in valores_unicos]
+                    if tiene_nulos:
+                        opciones.append("<Vacío>")
+
+                    seleccionados = st.multiselect(
+                        f"Filtrar: {col}",
+                        options=opciones,
+                        default=opciones,
+                        key=f"{key_prefix}_excel_filter_{col}",
+                    )
+
+                    # Aplicar filtro
+                    if len(seleccionados) < len(opciones):
+                        def check_val(x):
+                            if pd.isna(x):
+                                return "<Vacío>" in seleccionados
+                            return str(x) in seleccionados
+
+                        df_filtrado = df_filtrado[df_filtrado[col].map(check_val)]
+        return df_filtrado
+
+    if use_expander:
+        with st.expander("🔍 Filtros de Columnas (Estilo Excel)", expanded=False):
+            return render_content()
+    else:
+        st.markdown("🔍 **Filtros de Columnas (Estilo Excel)**")
+        return render_content()
+
+

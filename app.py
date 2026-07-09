@@ -97,32 +97,98 @@ if reporte == "🏠 Resumen General":
     c7.metric("🪙 Ingresos PEN", f"S/ {sol[sol['TIPO']=='Ingreso']['CARGO_ABONO'].sum():,.2f}")
     c8.metric("🪙 Egresos PEN", f"S/ {sol[sol['TIPO']=='Egreso']['CARGO_ABONO'].sum():,.2f}")
 
+    st.markdown("---")
+    st.markdown("### ⚙️ Configuración del Resumen")
+    cc1, cc2 = st.columns(2)
+    with cc1:
+        moneda_sel = st.radio(
+            "🪙 Moneda a considerar",
+            ["Todos", "SOLES", "DOLARES"],
+            index=0,
+            horizontal=True,
+            key="resumen_moneda_radio"
+        )
+    with cc2:
+        metrica_sel = st.radio(
+            "📊 Métrica de los gráficos",
+            ["Monto", "Cantidad"],
+            index=0,
+            horizontal=True,
+            key="resumen_metrica_radio"
+        )
+
+    # Filtrar datos
+    df_res = df.copy()
+    if moneda_sel != "Todos":
+        df_res = df_res[df_res["Moneda"] == moneda_sel]
+
+    df_res["MontoAbs"] = df_res["CARGO_ABONO"].abs()
+
     st.markdown("### Distribución de Movimientos")
     import plotly.express as px
 
     col1, col2 = st.columns(2)
     with col1:
-        fig_tipo = px.pie(df, names="TIPO", title="Por Tipo", template="plotly_dark",
-                          color_discrete_sequence=["#00C9A7", "#FF6B6B"], hole=0.4)
-        st.plotly_chart(fig_tipo, use_container_width=True)
+        if metrica_sel == "Monto":
+            fig_tipo = px.pie(
+                df_res, names="TIPO", values="MontoAbs",
+                title="Por Tipo (Monto Absoluto)", template="plotly_dark",
+                color_discrete_sequence=["#00C9A7", "#FF6B6B"], hole=0.4
+            )
+        else:
+            fig_tipo = px.pie(
+                df_res, names="TIPO",
+                title="Por Tipo (Cantidad de Movimientos)", template="plotly_dark",
+                color_discrete_sequence=["#00C9A7", "#FF6B6B"], hole=0.4
+            )
+        st.plotly_chart(fig_tipo, use_container_width=True, key="pie_tipo_resumen")
+
     with col2:
-        fig_mon = px.pie(df, names="Moneda", title="Por Moneda", template="plotly_dark",
-                         color_discrete_sequence=["#FFD93D", "#6ECCAF"], hole=0.4)
-        st.plotly_chart(fig_mon, use_container_width=True)
+        if metrica_sel == "Monto":
+            fig_mon = px.pie(
+                df_res, names="Moneda", values="MontoAbs",
+                title="Por Moneda (Monto Absoluto)", template="plotly_dark",
+                color_discrete_sequence=["#FFD93D", "#6ECCAF"], hole=0.4
+            )
+        else:
+            fig_mon = px.pie(
+                df_res, names="Moneda",
+                title="Por Moneda (Cantidad de Movimientos)", template="plotly_dark",
+                color_discrete_sequence=["#FFD93D", "#6ECCAF"], hole=0.4
+            )
+        st.plotly_chart(fig_mon, use_container_width=True, key="pie_moneda_resumen")
 
     # Top genéricos
-    st.markdown("### Top Genéricos por Volumen")
-    top_gen = df.groupby("GENÉRICO")["CARGO_ABONO"].agg(["sum", "count"]).reset_index()
-    top_gen.columns = ["Genérico", "Monto Total", "Cantidad"]
-    top_gen = top_gen.sort_values("Cantidad", ascending=False)
-    fig_top = px.bar(top_gen, x="Genérico", y="Cantidad", color="Monto Total",
-                     template="plotly_dark", title="Cantidad de movimientos por Genérico",
-                     color_continuous_scale="Viridis")
+    st.markdown("### Top Genéricos")
+    top_gen = df_res.groupby("GENÉRICO")["CARGO_ABONO"].agg(
+        monto_total=lambda x: x.abs().sum(),
+        cantidad="count"
+    ).reset_index()
+
+    if metrica_sel == "Monto":
+        top_gen = top_gen.sort_values("monto_total", ascending=False)
+        fig_top = px.bar(
+            top_gen, x="GENÉRICO", y="monto_total", color="cantidad",
+            template="plotly_dark",
+            title=f"Monto Total por Genérico ({moneda_sel})",
+            color_continuous_scale="Viridis",
+            labels={"monto_total": "Monto Total (Absoluto)", "cantidad": "Cantidad", "GENÉRICO": "Genérico"}
+        )
+    else:
+        top_gen = top_gen.sort_values("cantidad", ascending=False)
+        fig_top = px.bar(
+            top_gen, x="GENÉRICO", y="cantidad", color="monto_total",
+            template="plotly_dark",
+            title=f"Cantidad de Movimientos por Genérico ({moneda_sel})",
+            color_continuous_scale="Viridis",
+            labels={"cantidad": "Cantidad de Movimientos", "monto_total": "Monto Total (Absoluto)", "GENÉRICO": "Genérico"}
+        )
+
     fig_top.update_layout(
         xaxis_tickangle=-45, height=450,
         yaxis_type=st.session_state.get("yaxis_type", "linear"),
     )
-    st.plotly_chart(fig_top, use_container_width=True)
+    st.plotly_chart(fig_top, use_container_width=True, key="bar_top_genericos")
 
 elif reporte == "📈 Ingresos vs Egresos":
     import grafico1

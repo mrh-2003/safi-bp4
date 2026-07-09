@@ -2,7 +2,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
-from utils import filtros_fecha, COLORS
+from utils import filtros_fecha, COLORS, filtrar_df_estilo_excel
 
 
 def render(df):
@@ -236,60 +236,57 @@ def render(df):
             use_container_width=True,
         )
 
-        # ── 3. Gráfico espejo de Evolución Mensual (Líneas) ──────────────
-        st.markdown("#### 🪞 Evolución Mensual (espejo)")
-        fig_line_mirror = go.Figure()
-        fig_line_mirror.add_trace(
-            go.Scatter(
-                x=all_months,
-                y=ing_vals,
-                name="Ingresos",
-                mode="lines+markers",
-                line=dict(color=COLORS["ingreso"], width=3),
-                marker=dict(size=6),
-                hovertemplate="%{x}<br>Ingreso: %{y:,.2f}<extra></extra>",
+        # ── 3. Evolución del Saldo Contable por Operación (Línea) ─────────
+        st.markdown("#### 📈 Evolución del Saldo Contable por Operación")
+        df_ops = dfm.sort_values(by=["FECHA_OPER_", "Nn_OPER_"]).copy()
+
+        if not df_ops.empty:
+            fig_ops = go.Figure()
+            # Customdata format: [fecha, descripcion, generico, tipo, cargo_abono]
+            custom_data_list = list(
+                zip(
+                    df_ops["FECHA_OPER_"].dt.strftime("%d/%m/%Y"),
+                    df_ops["DESCRIPCION"].fillna(""),
+                    df_ops["GENÉRICO"].fillna(""),
+                    df_ops["TIPO"],
+                    df_ops["CARGO_ABONO"],
+                )
             )
-        )
-        fig_line_mirror.add_trace(
-            go.Scatter(
-                x=all_months,
-                y=egr_vals,
-                name="Egresos",
-                mode="lines+markers",
-                line=dict(color=COLORS["egreso"], width=3),
-                marker=dict(size=6),
-                hovertemplate="%{x}<br>Egreso: %{customdata:,.2f}<extra></extra>",
-                customdata=[abs(v) for v in egr_vals],
+            fig_ops.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(df_ops) + 1)),
+                    y=list(df_ops["SALDO_CONTABLE"]),
+                    mode="lines+markers",
+                    line=dict(color="#00D2FF", width=2.5),
+                    marker=dict(size=4),
+                    hovertemplate=(
+                        "<b>Operación %{x}</b><br>"
+                        "Fecha: %{customdata[0]}<br>"
+                        "Tipo: %{customdata[3]}<br>"
+                        "Genérico: %{customdata[2]}<br>"
+                        "Descripción: %{customdata[1]}<br>"
+                        "Monto: %{customdata[4]:,.2f}<br>"
+                        "<b>Saldo: %{y:,.2f}</b>"
+                        "<extra></extra>"
+                    ),
+                    customdata=custom_data_list,
+                )
             )
-        )
-        fig_line_mirror.add_trace(
-            go.Scatter(
-                x=all_months,
-                y=net_vals,
-                name="Neto",
-                mode="lines+markers",
-                line=dict(color="#FFD93D", width=2, dash="dot"),
-                marker=dict(size=6),
-                hovertemplate="%{x}<br>Neto: %{y:,.2f}<extra></extra>",
+            yaxis_type_ops = st.session_state.get("yaxis_type", "linear")
+            fig_ops.update_layout(
+                template="plotly_dark",
+                title=f"Saldo Contable por Operación — {moneda}",
+                xaxis_title="Número de Operación (Orden Cronológico)",
+                yaxis_title=f"Saldo Contable ({sym})",
+                yaxis_type=yaxis_type_ops,
+                hovermode="x unified",
+                height=450,
             )
-        )
-        fig_line_mirror.add_hline(
-            y=0, line_width=1, line_color="rgba(255,255,255,0.4)"
-        )
-        fig_line_mirror.update_layout(
-            template="plotly_dark",
-            title=f"Evolución Mensual Espejo — {moneda}",
-            xaxis_title="Mes",
-            yaxis_title=f"Monto ({sym})",
-            hovermode="x unified",
-            legend=dict(orientation="h", y=1.12),
-            height=450,
-        )
-        st.plotly_chart(
-            fig_line_mirror,
-            use_container_width=True,
-            key=f"line_g2_mirror_{moneda}",
-        )
+            st.plotly_chart(
+                fig_ops,
+                use_container_width=True,
+                key=f"line_ops_g2_{moneda}",
+            )
 
         # ── Tabla detallada ───────────────────────────────────────────
         with st.expander(f"📋 Detalle completo — {moneda}"):
@@ -303,7 +300,11 @@ def render(df):
                     "SALDO_CONTABLE",
                 ]
             ].copy()
-            show["FECHA_OPER_"] = show["FECHA_OPER_"].dt.strftime("%d/%m/%Y")
-            st.dataframe(show, use_container_width=True, height=400)
+            # Aplicar filtro estilo Excel
+            show_filtrado = filtrar_df_estilo_excel(show, f"g2_tbl_{moneda}", use_expander=False)
+            show_filtrado_show = show_filtrado.copy()
+            show_filtrado_show["FECHA_OPER_"] = show_filtrado_show["FECHA_OPER_"].dt.strftime("%d/%m/%Y")
+            st.dataframe(show_filtrado_show, use_container_width=True, height=400)
 
         st.divider()
+

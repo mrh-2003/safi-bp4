@@ -388,6 +388,7 @@ def render(df):
 
     # ── Desglose por Genérico (barras horizontales) ───────────────────
     st.markdown("### 🏷️ Desglose por Genérico (ordenado por monto)")
+    st.caption("💡 *Haga clic en una barra para reemplazar el gráfico con el detalle de descripciones. Use el botón para volver.*")
 
     yaxis_type = st.session_state.get("yaxis_type", "linear")
 
@@ -402,46 +403,125 @@ def render(df):
             ("Egreso", COLORS["egreso"]),
         ]:
             sub = dfmon[dfmon["TIPO"] == tipo]
-            grp = (
-                sub.groupby("GENÉRICO")["CARGO_ABONO"]
-                .sum()
-                .abs()
-                .sort_values(ascending=False)
-                .reset_index()
-            )
-            grp.columns = ["Genérico", "Monto"]
-            if grp.empty:
-                continue
+            key_name = f"bar_g3_{moneda}_{tipo}"
+            state_key = f"selected_gen_{moneda}_{tipo}"
 
-            fig_bar = go.Figure(
-                go.Bar(
-                    y=grp["Genérico"],
-                    x=grp["Monto"],
-                    orientation="h",
-                    marker_color=color,
-                    text=[f"{sym} {v:,.2f}" for v in grp["Monto"]],
-                    textposition="auto",
+            if state_key not in st.session_state:
+                st.session_state[state_key] = None
+
+            # Si no hay selección, mostramos el gráfico de Genéricos
+            if not st.session_state[state_key]:
+                grp = (
+                    sub.groupby("GENÉRICO")["CARGO_ABONO"]
+                    .sum()
+                    .abs()
+                    .sort_values(ascending=False)
+                    .reset_index()
                 )
-            )
-            fig_bar.update_layout(
-                template="plotly_dark",
-                title=f"{tipo}s — {moneda} (por Genérico)",
-                height=max(300, len(grp) * 35),
-                yaxis=dict(autorange="reversed"),
-                xaxis_title=f"Monto ({sym})",
-                xaxis_type=yaxis_type,
-                margin=dict(l=250),
-            )
-            st.plotly_chart(
-                fig_bar, use_container_width=True, key=f"bar_g3_{moneda}_{tipo}"
-            )
+                grp.columns = ["Genérico", "Monto"]
+                if grp.empty:
+                    continue
+
+                fig_bar = go.Figure(
+                    go.Bar(
+                        y=grp["Genérico"],
+                        x=grp["Monto"],
+                        orientation="h",
+                        marker_color=color,
+                        text=[f"{sym} {v:,.2f}" for v in grp["Monto"]],
+                        textposition="auto",
+                    )
+                )
+                fig_bar.update_layout(
+                    template="plotly_dark",
+                    title=f"{tipo}s — {moneda} (por Genérico)",
+                    height=max(300, len(grp) * 35),
+                    yaxis=dict(autorange="reversed"),
+                    xaxis_title=f"Monto ({sym})",
+                    xaxis_type=yaxis_type,
+                    margin=dict(l=250),
+                )
+                
+                selected_data = st.plotly_chart(
+                    fig_bar,
+                    use_container_width=True,
+                    on_select="rerun",
+                    selection_mode="points",
+                    key=key_name
+                )
+
+                if selected_data:
+                    try:
+                        if isinstance(selected_data, dict):
+                            points = selected_data.get("selection", {}).get("points", [])
+                        else:
+                            points = getattr(selected_data, "selection", {}).get("points", [])
+                        
+                        if points:
+                            clicked_val = points[0].get("y", None)
+                            if clicked_val:
+                                st.session_state[state_key] = clicked_val
+                                st.rerun()
+                    except Exception:
+                        pass
+            
+            # Si hay selección, mostramos el detalle (reemplazando el gráfico)
+            else:
+                selected_generic = st.session_state[state_key]
+                sub_detail = sub[sub["GENÉRICO"] == selected_generic]
+                grp_detail = (
+                    sub_detail.groupby("DESCRIPCION")["CARGO_ABONO"]
+                    .sum()
+                    .abs()
+                    .sort_values(ascending=False)
+                    .reset_index()
+                )
+                grp_detail.columns = ["Descripción", "Monto"]
+
+                st.markdown(f"🔍 **Detalle de Genérico: `{selected_generic}`** ({tipo}s)")
+                
+                if not grp_detail.empty:
+                    fig_detail = go.Figure(
+                        go.Bar(
+                            y=grp_detail["Descripción"],
+                            x=grp_detail["Monto"],
+                            orientation="h",
+                            marker_color="#00D2FF",
+                            text=[f"{sym} {v:,.2f}" for v in grp_detail["Monto"]],
+                            textposition="auto",
+                        )
+                    )
+                    fig_detail.update_layout(
+                        template="plotly_dark",
+                        title=f"Desglose de {selected_generic} — {tipo}s ({moneda})",
+                        height=max(300, len(grp_detail) * 35),
+                        yaxis=dict(autorange="reversed"),
+                        xaxis_title=f"Monto ({sym})",
+                        xaxis_type=yaxis_type,
+                        margin=dict(l=250),
+                    )
+                    st.plotly_chart(
+                        fig_detail,
+                        use_container_width=True,
+                        key=f"detail_g3_{moneda}_{tipo}"
+                    )
+                else:
+                    st.info("No hay detalles disponibles para este Genérico.")
+
+                if st.button("🔙 Volver a Genéricos", key=f"btn_reset_{moneda}_{tipo}"):
+                    st.session_state[state_key] = None
+                    st.rerun()
 
         # Tabla
         with st.expander(f"📋 Detalle — {moneda}"):
             show = dfmon[
                 ["FECHA_OPER_", "TIPO", "GENÉRICO", "DESCRIPCION", "CARGO_ABONO"]
             ].copy()
-            show["FECHA_OPER_"] = show["FECHA_OPER_"].dt.strftime("%d/%m/%Y")
-            st.dataframe(show, use_container_width=True, height=350)
+            from utils import filtrar_df_estilo_excel
+            show_filtrado = filtrar_df_estilo_excel(show, f"g3_tbl_{moneda}", use_expander=False)
+            show_filtrado_show = show_filtrado.copy()
+            show_filtrado_show["FECHA_OPER_"] = show_filtrado_show["FECHA_OPER_"].dt.strftime("%d/%m/%Y")
+            st.dataframe(show_filtrado_show, use_container_width=True, height=350)
 
     st.divider()
+

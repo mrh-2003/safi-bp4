@@ -1,7 +1,7 @@
 """Gráfico 1: Líneas de Ingresos vs Egresos por SALDO_CONTABLE (Soles y Dólares)."""
 import streamlit as st
 import plotly.graph_objects as go
-from utils import filtros_fecha, filtro_generico, COLORS
+from utils import filtros_fecha, filtro_generico, COLORS, filtrar_df_estilo_excel
 
 
 def render(df):
@@ -84,8 +84,12 @@ def render(df):
                     "SALDO_CONTABLE",
                 ]
             ].copy()
-            tabla["FECHA_OPER_"] = tabla["FECHA_OPER_"].dt.strftime("%d/%m/%Y")
-            st.dataframe(tabla, use_container_width=True, height=400)
+            # Aplicar filtro estilo Excel aquí
+            tabla_filtrada = filtrar_df_estilo_excel(tabla, f"g1_tbl_{moneda}", use_expander=False)
+            # Clonar formato de fecha después de filtrar para no perder el filtro por fecha
+            tabla_filtrada_show = tabla_filtrada.copy()
+            tabla_filtrada_show["FECHA_OPER_"] = tabla_filtrada_show["FECHA_OPER_"].dt.strftime("%d/%m/%Y")
+            st.dataframe(tabla_filtrada_show, use_container_width=True, height=400)
 
         # KPIs
         c1, c2, c3 = st.columns(3)
@@ -93,3 +97,4 @@ def render(df):
         c2.metric("Total Egresos", f"{sym} {egresos['CARGO_ABONO'].sum():,.2f}")
         c3.metric("Neto", f"{sym} {dfm['CARGO_ABONO'].sum():,.2f}")
         st.divider()
+
